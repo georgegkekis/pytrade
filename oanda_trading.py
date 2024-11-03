@@ -5,6 +5,7 @@ import v20
 import signal
 import sys
 import time
+import pandas as pd
 
 def initialize_ohlc(instrument):
     """Initialize the OHLC data structure for an instrument."""
@@ -14,7 +15,7 @@ def initialize_ohlc(instrument):
         'l': float('inf'),
         'c': None,
         'volume': 0,
-        'start_time': time.time()  # Track the start time of the window
+        'start_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
     }
     tick_count[instrument] = 0  # Track number of ticks (volume)
     
@@ -30,12 +31,11 @@ def update_ohlc(instrument, price):
     ohlc_data[instrument]['c'] = price
     ohlc_data[instrument]['volume'] += 1
     tick_count[instrument] += 1
+    #print("Data:")
+    #print(ohlc_data)
 
 def reset_ohlc(instrument):
-    """Reset OHLC data after the end of the window (e.g., 1 minute)."""
-    print(f"\nInstrument: {instrument} - OHLC Data (Time Window Ended):")
-    print(f"Open: {ohlc_data[instrument]['o']}, High: {ohlc_data[instrument]['h']}, Low: {ohlc_data[instrument]['l']}, Close: {ohlc_data[instrument]['c']}, Volume: {ohlc_data[instrument]['volume']}")
-
+    """Reset OHLC data"""
     # Reset the OHLC for the next time window
     ohlc_data[instrument] = {
         'o': None,
@@ -43,29 +43,64 @@ def reset_ohlc(instrument):
         'l': float('inf'),
         'c': None,
         'volume': 0,
-        'start_time': time.time()  # Reset start time
+        'start_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
     }
     tick_count[instrument] = 0  # Reset tick count (volume)
 
-def process_forex_data(data):
-    """Handle and process the incoming stream data, updating OHLC."""
+def process_forex_data(data, timeframe=60):
+    """Process the incoming stream data, updating OHLC"""
+    global ohlc_df
     try:
-        if 'price' in data:
-            instrument = data['price']['instrument']
-            bid_price = float(data['price']['bids'][0]['price'])
+        if data.get('type') == 'PRICE':
+            instrument = data['instrument']
+            # Extract the first bid price
+            if 'bids' in data and len(data['bids']) > 0:
+                bid_price = float(data['bids'][0]['price'])
 
-            # Update OHLC data for the instrument
-            update_ohlc(instrument, bid_price)
+                update_ohlc(instrument, bid_price)
 
-            # Check if the time window (e.g., 1 minute) has elapsed
-            current_time = time.time()
-            if current_time - ohlc_data[instrument]['start_time'] >= 60:  # 60 seconds = 1 minute
-                reset_ohlc(instrument)
+                # Check if the time window has elapsed
+                current_time = time.time()
+                t_struct = time.strptime(ohlc_data[instrument]['start_time'], '%Y-%m-%d %H:%M:%S')
+                if current_time - time.mktime(t_struct) >= timeframe:
+                    start_time = ohlc_data[instrument]['start_time']
 
-    except KeyError:
-        print("Error: Missing expected fields in data")
+                    open_price = ohlc_data[instrument]['o']
+                    high_price = ohlc_data[instrument]['h']
+                    low_price = ohlc_data[instrument]['l']
+                    close_price = ohlc_data[instrument]['c']
+
+                    new_row = pd.DataFrame({
+                        'start_time': [start_time],
+                        'open': [open_price],
+                        'high': [high_price],
+                        'low': [low_price],
+                        'close': [close_price],
+                        'volume': [ohlc_data[instrument]['volume']]
+                    })
+
+                    # Ensure the new row doesn't contain empty or all-NA entries
+                    if not new_row.isna().all(axis=1).any():
+                        # Append the new row to the existing DataFrame
+                        ohlc_df = pd.concat([ohlc_df, new_row], ignore_index=True)
+
+                    # Print the updated DataFrame
+                    print(f"\nInstrument: {instrument} - OHLC Data (Time Window Ended):")
+                    print(f"\nUpdated OHLC DataFrame:\n{ohlc_df}\n")
+
+                    # Save the DataFrame to a CSV file
+                    ohlc_df.to_csv('ohlc_data.csv', index=False)
+
+                    # Reset the OHLC data for the next time window
+                    reset_ohlc(instrument)
+            else:
+                print("No bid data available for price update.")
+
+    except KeyError as e:
+        print(f"Error: Missing expected field {e} in data")
     except Exception as e:
         print(f"Unexpected error while processing data: {e}")
+
 
 def stream_forex_data(account_id, api_key, stream_url):
     """Connect to OANDA API and stream live data, delegating OHLC processing to process_forex_data."""
@@ -173,10 +208,9 @@ def stream_forex_data_mock():
 
 ohlc_data = {}
 tick_count = {}
-def main():
+ohlc_df = pd.DataFrame(columns=['start_time', 'open', 'high', 'low', 'close', 'volume'])
 
-        
-    # Argument parsing
+def main():
     parser = argparse.ArgumentParser(description="Trading with OANDA")
     parser.add_argument('--mock', action='store_true', help="Connect to the mock server instead of OANDA API")
     args = parser.parse_args()
