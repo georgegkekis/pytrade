@@ -82,7 +82,7 @@ def process_forex_data(data, timeframe=60):
                     # Ensure the new row doesn't contain empty or all-NA entries
                     if not new_row.isna().all(axis=1).any():
                         # Append the new row to the existing DataFrame
-                        ohlc_df = pd.concat([ohlc_df, new_row], ignore_index=True)
+                        ohlc_df = pd.concat([ohlc_df if not ohlc_df.empty else None, new_row], ignore_index=True)
 
                     # Print the updated DataFrame
                     print(f"\nInstrument: {instrument} - OHLC Data (Time Window Ended):")
