@@ -72,10 +72,10 @@ def process_forex_data(data, timeframe=60):
 
                     new_row = pd.DataFrame({
                         'start_time': [start_time],
-                        'open': [open_price],
-                        'high': [high_price],
-                        'low': [low_price],
-                        'close': [close_price],
+                        'o': [open_price],
+                        'h': [high_price],
+                        'l': [low_price],
+                        'c': [close_price],
                         'volume': [ohlc_data[instrument]['volume']]
                     })
 
@@ -84,13 +84,12 @@ def process_forex_data(data, timeframe=60):
                         # Append the new row to the existing DataFrame
                         ohlc_df = pd.concat([ohlc_df if not ohlc_df.empty else None, new_row], ignore_index=True)
 
-                    # Print the updated DataFrame
-                    print(f"\nInstrument: {instrument} - OHLC Data (Time Window Ended):")
                     print(f"\nUpdated OHLC DataFrame:\n{ohlc_df}\n")
 
                     # Save the DataFrame to a CSV file
                     ohlc_df.to_csv('ohlc_data.csv', index=False)
-
+                    # Calculate indicators
+                    calculate_indicators(ohlc_df)
                     # Reset the OHLC data for the next time window
                     reset_ohlc(instrument)
             else:
@@ -208,7 +207,50 @@ def stream_forex_data_mock():
 
 ohlc_data = {}
 tick_count = {}
-ohlc_df = pd.DataFrame(columns=['start_time', 'open', 'high', 'low', 'close', 'volume'])
+ohlc_df = pd.DataFrame(columns=['start_time', 'o', 'h', 'l', 'c', 'volume'])
+
+def calculate_indicators(ohlc_df):
+    calculate_ema(ohlc_df, 10)
+    calculate_sma(ohlc_df, 10)
+    calculate_rsi(ohlc_df, timeframe=14, column_name='RSI')
+    print(ohlc_df[['start_time', 'c', 'ema_10', 'sma_10', 'RSI']])
+
+def calculate_ema(ohlc_df, timeframe):
+    ohlc_df[f'ema_{timeframe}'] = ohlc_df['c'].ewm(span=timeframe, adjust=False).mean()
+
+def calculate_sma(ohlc_df, timeframe):
+    ohlc_df[f'sma_{timeframe}'] = ohlc_df['c'].rolling(window=timeframe).mean()
+
+
+def calculate_rsi(ohlc_df, timeframe=14, column_name='RSI'):
+    """
+    Calculate the Relative Strength Index (RSI) for the specified timeframe
+    and add it to the DataFrame as a new column.
+
+    Parameters:
+        ohlc_df (pd.DataFrame): The DataFrame containing OHLC data with 'c' prices.
+        timeframe (int): The number of periods to use for calculating the RSI.
+        column_name (str): The name of the column where the RSI will be stored.
+
+    Returns:
+        pd.DataFrame: The updated DataFrame with the RSI column.
+    """
+    if 'c' not in ohlc_df.columns:
+        raise ValueError("The DataFrame must contain a 'c' column.")
+
+    delta = ohlc_df['c'].diff()
+    gain = (delta.where(delta > 0, 0))
+    loss = (-delta.where(delta < 0, 0))
+
+    avg_gain = gain.rolling(window=timeframe, min_periods=1).mean()
+    avg_loss = loss.rolling(window=timeframe, min_periods=1).mean()
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+
+    # Add the RSI column to the DataFrame
+    ohlc_df[column_name] = rsi
+
 
 def main():
     parser = argparse.ArgumentParser(description="Trading with OANDA")
