@@ -113,7 +113,7 @@ def stream_forex_data(account_id, api_key, stream_url, server_name):
         params = {'instruments': "EUR_USD",}
 
         # Open a connection to the streaming API
-        response = requests.get(stream_url, headers=oanda_headers(api_key), params=params, stream=True)
+        response = requests.get(stream_url, headers=get_oanda_headers(api_key), params=params, stream=True)
 
         # Check if connection is established
         if response.status_code != 200:
@@ -160,7 +160,7 @@ def calculate_sma(ohlc_df, length):
 def calculate_rsi(ohlc_df):
     ohlc_df['RSI'] = ta.rsi(ohlc_df['c'], length=14)
 
-def oanda_headers(api_key):
+def get_oanda_headers(api_key):
     return {
         'Authorization': f'Bearer {api_key}',
         'Content-Type': 'application/json'
@@ -170,7 +170,7 @@ def get_current_price(api_key, account_id, instrument):
     """Fetch the current bid/ask prices for an instrument."""
     url = f"https://api-fxpractice.oanda.com/v3/accounts/{account_id}/pricing"
     params = {"instruments": instrument}
-    response = requests.get(url, headers=oanda_headers(api_key), params=params)
+    response = requests.get(url, headers=get_oanda_headers(api_key), params=params)
 
     if response.status_code == 200:
         prices = response.json().get('prices', [])
@@ -223,7 +223,7 @@ def place_order(api_key, account_id, instrument="EUR_USD", units=100, sl=None, t
     url = f"https://api-fxpractice.oanda.com/v3/accounts/{account_id}/orders"
 
     # Make the API request to place the order
-    response = requests.post(url, headers=oanda_headers(api_key), json=order_data)
+    response = requests.post(url, headers=get_oanda_headers(api_key), json=order_data)
     if response.status_code == 201:
         print(f"Order placed successfully for {instrument}.")
         return response.json()
@@ -240,7 +240,7 @@ def sell_order(api_key, account_id, instrument, units, sl, tp):
 def get_account_balance(api_key, account_id):
     """Fetch the current balance of the OANDA account."""
     url = f"https://api-fxpractice.oanda.com/v3/accounts/{account_id}/summary"
-    response = requests.get(url, headers=oanda_headers(api_key))
+    response = requests.get(url, headers=get_oanda_headers(api_key))
 
     if response.status_code == 200:
         account_info = response.json().get('account', {})
@@ -272,7 +272,7 @@ def should_trade():
 def get_open_positions(api_key, account_id, instrument):
     url = f"https://api-fxpractice.oanda.com/v3/accounts/{account_id}/openPositions"
     try:
-        response = requests.get(url, headers=oanda_headers(api_key))
+        response = requests.get(url, headers=get_oanda_headers(api_key))
         if not response.json()['positions']:
             return None
         # Check if there is an open position for the given instrument
