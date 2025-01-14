@@ -356,7 +356,6 @@ def main():
     args = parser.parse_args()
 
     config_file = 'pyalgo.cfg'
-    instrument = "EUR_USD"
     account_id, access_token, account_type = get_config(config_file)
     stream_url = get_stream_url(account_type, args.mock, account_id)
 
