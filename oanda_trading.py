@@ -346,7 +346,9 @@ def get_config(config_file):
             account_id = line.split('=')[1].strip()
         elif 'access_token' in line:
             access_token = line.split('=')[1].strip()
-    return account_id, access_token
+        elif 'account_type' in line:
+            account_type =  line.split('=')[1].strip()
+    return account_id, access_token, account_type
 
 def main():
     parser = argparse.ArgumentParser(description="Trading with OANDA")
@@ -355,8 +357,7 @@ def main():
 
     config_file = 'pyalgo.cfg'
     instrument = "EUR_USD"
-    account_type = 'practice'
-    account_id, access_token = get_config(config_file)
+    account_id, access_token, account_type = get_config(config_file)
     stream_url = get_stream_url(account_type, args.mock, account_id)
 
     if args.mock:
