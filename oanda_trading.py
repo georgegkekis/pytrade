@@ -46,7 +46,7 @@ def reset_ohlc(instrument):
         'l': float('inf'),
         'c': None,
         'volume': 0,
-        'start_time': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time()))
+        'start_time': time.strftime('%Y-%m-%d %H:%M:00', time.localtime(time.time()))
     }
     tick_count[instrument] = 0  # Reset tick count (volume)
 
