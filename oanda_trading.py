@@ -24,6 +24,8 @@ def initialize_ohlc(instrument):
     
 def update_ohlc(instrument, price):
     """Update OHLC data for each price update."""
+    if not instrument in ohlc_data:
+        return
     if ohlc_data[instrument]['o'] is None:
         # Set the open price on the first tick
         ohlc_data[instrument]['o'] = price
@@ -48,8 +50,10 @@ def reset_ohlc(instrument):
     }
     tick_count[instrument] = 0  # Reset tick count (volume)
 
-def process_forex_data(api_key, account_id, data, timeframe=60):
+def process_forex_data(api_key, account_id, data, instrument, timeframe=60):
     """Process the incoming stream data, updating OHLC"""
+    if not instrument in ohlc_data:
+        return
     global ohlc_df
     try:
         if data.get('type') == 'PRICE':
@@ -117,20 +121,23 @@ def stream_forex_data(account_id, api_key, stream_url, server_name):
 
         # Check if connection is established
         if response.status_code != 200:
-            print(f"Error connecting to server:{server_name}\nError: {response.status_code}")
+            print(f"Error connecting to server:{server_name}\n \
+                    Error: {response.status_code}")
             print(response.text)
             return
-
-        initialize_ohlc("EUR_USD")
 
         # Stream the data line-by-line
         for line in response.iter_lines():
             if line:
                 #print(f"Data received: {line}")
                 decoded_line = line.decode('utf-8')
+                if "EUR_USD" in ohlc_data:
+                    pass
+                elif time.localtime().tm_sec == 0:
+                    initialize_ohlc("EUR_USD")
                 try:
                     data = json.loads(decoded_line)
-                    process_forex_data(api_key, account_id, data)
+                    process_forex_data(api_key, account_id, data, "EUR_USD")
                 except json.JSONDecodeError:
                     print("Error decoding stream data")
                     traceback.print_exc()
