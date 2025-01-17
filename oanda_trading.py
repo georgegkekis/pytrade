@@ -159,10 +159,8 @@ def calculate_indicators(ohlc_df):
 def calculate_ema(ohlc_df, length):
     ohlc_df[f'ema_{length}'] = ta.ema(ohlc_df['c'], length=length)
 
-
 def calculate_sma(ohlc_df, length):
     ohlc_df[f'sma_{length}'] = ta.sma(ohlc_df['c'], length=length)
-
 
 def calculate_rsi(ohlc_df):
     ohlc_df['RSI'] = ta.rsi(ohlc_df['c'], length=14)
@@ -357,6 +355,49 @@ def get_config(config_file):
             account_type =  line.split('=')[1].strip()
     return account_id, access_token, account_type
 
+def get_historical_data(api_key, instrument, granularity='M1', count=1440):
+    """Fetch historical data from OANDA for the given instrument."""
+    url = f"https://api-fxpractice.oanda.com/v3/instruments/{instrument}/candles"
+    params = {
+        'count': count,  # This is approximately 1 days (assuming 1440 minutes in a day)
+        'granularity': granularity,  # 1-minute candles
+        'price': 'B'  # Bid prices
+    }
+    response = requests.get(url, headers=get_oanda_headers(api_key), params=params)
+
+    if response.status_code == 200:
+        candles = response.json().get('candles', [])
+        ohlc_list = []
+        for candle in candles:
+            if candle['complete']:  # Only consider complete candles
+                ohlc_list.append({
+                    'start_time': candle['time'],
+                    'o': float(candle['bid']['o']),
+                    'h': float(candle['bid']['h']),
+                    'l': float(candle['bid']['l']),
+                    'c': float(candle['bid']['c']),
+                    'volume': candle['volume']
+                })
+
+        return pd.DataFrame(ohlc_list)
+    else:
+        print(f"Failed to fetch historical data: {response.status_code} - {response.text}")
+        return pd.DataFrame()
+
+def initialize_ohlc_data(api_key, instrument):
+    """Initialize OHLC data by fetching historical data."""
+    global ohlc_df
+
+    # Fetch historical data for the last 10 days (using M1 candles)
+    ohlc_df = get_historical_data(api_key, instrument)
+
+    if not ohlc_df.empty:
+        # Ensure that the fetched historical data is saved
+        ohlc_df.to_csv('ohlc_data.csv', index=False)
+        print("Historical data successfully fetched and saved.")
+    else:
+        print("No historical data available, starting fresh.")
+
 def main():
     parser = argparse.ArgumentParser(description="Trading with OANDA")
     parser.add_argument('--mock', action='store_true', help="Connect to the mock server instead of OANDA API")
@@ -365,7 +406,9 @@ def main():
     config_file = 'pyalgo.cfg'
     account_id, access_token, account_type = get_config(config_file)
     stream_url = get_stream_url(account_type, args.mock, account_id)
+    instrument = "EUR_USD"
 
+    initialize_ohlc_data(access_token, instrument)
     if args.mock:
         stream_forex_data(account_id, access_token, stream_url, "mock")
     else:
